@@ -346,12 +346,60 @@ def challenge14():
 
     return break_oracle(enc_eliminate_prefix)
 
-for i in xrange(30):
-    print challenge14()
+def strip_pkcs7_padding(text):
+    for i, c in enumerate(reversed(text)):
+        if c != '\x04':
+            if c in string.printable:
+                return text[:-i]
+            else:
+                raise Exception('Bad Padding')
 
-# vals = []
-# for i in xrange(30):
-#     vals.append(challenge14())
-#     PREFIX = None
-# print sorted(vals)
+
+KEY3 = ''
+IV = ''
+def encrypt_url(text):
+    global KEY3, IV
+    if not KEY3:
+        KEY3 = make_random_aes_key()
+        IV = make_random_aes_key()
+    text = text.replace(';', '%%Q')
+    text = text.replace('=', '%%E')
+    prepend = "comment1=cooking%20MCs;userdata="
+    append = ";comment2=%20like%20a%20pound%20of%20bacon"
+    to_encrypt = pkcs7_padding(prepend + text + append, len(KEY3))
+    return aes_cbc_encrypt(to_encrypt, KEY3, IV)
+
+
+def is_admin_url(encrypted):
+    decrypted = aes_cbc_decrypt(encrypted, KEY3, IV)
+    return ';admin=true;' in decrypted
+
+
+def edit_ciphertext_make_admin(ciphertext, prepend, admin_string):
+    # Skipping some steps, since we've already learned this
+    block_size = 16
+    # Admin string happens to be a multiple of 1, so we can start editing the
+    # beginning of the following block
+    edit_block_index = len(prepend) / block_size
+    chunks = split_into_chunks(ciphertext, block_size)
+    print len(ciphertext)
+    assert len(admin_string) < 16
+    payload_text = 'A' * (16 - len(admin_string)) + admin_string
+    payload = xor_bin('\x00' * 16, payload_text)
+    chunks[edit_block_index] = str(xor_bin(chunks[edit_block_index], payload))
+    return ''.join(chunks)
+
+def challenge16():
+    admin_string = ';admin=true;'
+    block_size = 16
+    prepend = "comment1=cooking%20MCs;userdata="
+    # We'll need two blocks for user data.  One to edit, and the other to
+    # contain admin=true
+    encrypted = encrypt_url('\x00' * block_size * 2)
+    encrypted = edit_ciphertext_make_admin(encrypted, prepend, admin_string)
+    return is_admin_url(encrypted)
+
+print repr(strip_pkcs7_padding('ICE ICE BABY\x04\x04\x04\x04'))
+print challenge16()
+
 print 'done'
