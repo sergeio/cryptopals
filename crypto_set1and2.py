@@ -17,7 +17,7 @@ def hex_to_b64(hex_):
 def xor_bin(bin1, bin2):
     bytes1, bytes2 = map(bytearray, (bin1, bin2))
     xored = [bytes1[i] ^ bytes2[i % len(bytes2)] for i in xrange(len(bytes1))]
-    return bytearray(xored)
+    return str(bytearray(xored))
 
 def xor_hex(hex1, hex2):
     if len(hex1) < len(hex2):
@@ -84,6 +84,7 @@ def hamming_distance(text1, text2):
     return count_bin_ones(bin_arr)
 
 def split_into_chunks(text, length):
+    assert length > 0
     split = 0
     chunks = []
     while split < len(text):
@@ -171,9 +172,11 @@ def challenge_10():
     bytes = read_in_file('10.txt', b64decode=True)
     return aes_cbc_decrypt(bytes, 'YELLOW SUBMARINE', '\x00'*16)
 
-def pkcs7_padding(text, blocksize):
-    chars_needed = blocksize - (len(text) % blocksize)
-    return text + ('\x04' * chars_needed)
+def pkcs7_padding(text, block_size):
+    chars_needed = block_size - (len(text) % block_size)
+    if not chars_needed:
+        chars_needed = block_size
+    return text + (chr(chars_needed) * chars_needed)
 
 def make_random_aes_key(length=16):
     return ''.join(chr(random.randint(0, 128)) for _ in xrange(length))
@@ -346,13 +349,19 @@ def challenge14():
 
     return break_oracle(enc_eliminate_prefix)
 
-def strip_pkcs7_padding(text):
-    for i, c in enumerate(reversed(text)):
-        if c != '\x04':
-            if c in string.printable:
-                return text[:-i]
-            else:
-                raise Exception('Bad Padding')
+class BadPadding(Exception):
+    pass
+
+def strip_pkcs7_padding(text, block_size):
+    pad = text[-1]
+    pad_i = ord(pad)
+    if pad_i < 1 or len(text) < pad_i or len(text) < block_size:
+        raise BadPadding
+    # Last N characters must be chr(N)
+    for c in itertools.islice(reversed(text), pad_i):
+        if c != pad:
+            raise BadPadding
+    return text[:-pad_i]
 
 
 KEY3 = ''
@@ -382,7 +391,6 @@ def edit_ciphertext_make_admin(ciphertext, prepend, admin_string):
     # beginning of the following block
     edit_block_index = len(prepend) / block_size
     chunks = split_into_chunks(ciphertext, block_size)
-    print len(ciphertext)
     assert len(admin_string) < 16
     payload_text = 'A' * (16 - len(admin_string)) + admin_string
     payload = xor_bin('\x00' * 16, payload_text)
@@ -399,7 +407,5 @@ def challenge16():
     encrypted = edit_ciphertext_make_admin(encrypted, prepend, admin_string)
     return is_admin_url(encrypted)
 
-print repr(strip_pkcs7_padding('ICE ICE BABY\x04\x04\x04\x04'))
-print challenge16()
 
 print 'done'
