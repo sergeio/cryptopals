@@ -46,15 +46,19 @@ def english_score(text):
 
     return cosine_similarity.similarity(text_freqs, english_freqs)
 
-def break_single_character_xor(text):
+def break_single_character_hex_xor(text):
     """Break the single-character-xor-encrypted hex-encoded `text`"""
     bins = [(binascii.unhexlify(xor_hex(text, binascii.hexlify(char))), char)
             for char in string.printable]
     return max((english_score(b), b, char) for b, char in bins)
 
+def break_single_character_xor(text):
+    bins = [(xor_bin(text, char), char) for char in map(chr, range(256))]
+    return max((english_score(b), b, char) for b, char in bins)[2]
+
 def challenge_3():
     s = '1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736'
-    return break_single_character_xor(s)
+    return break_single_character_hex_xor(s)
 
 def challenge_4():
     lines = []
@@ -62,7 +66,7 @@ def challenge_4():
         lines = f.readlines()
 
     lines = map(lambda l: l.strip(), lines)
-    return max(map(break_single_character_xor, lines))
+    return max(map(break_single_character_hex_xor, lines))
 
 def challenge_5():
     s = "Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal"
@@ -80,7 +84,7 @@ def count_bin_ones(byte_array):
 
 def hamming_distance(text1, text2):
     """Number of differing bits between texts"""
-    bin_arr = xor_bin(text1, text2)
+    bin_arr = bytearray(xor_bin(text1, text2))
     return count_bin_ones(bin_arr)
 
 def split_into_chunks(text, length):
@@ -99,20 +103,22 @@ def challenge_6():
     lines = [l.strip() for l in lines]
     encoded = ''.join(lines)
     text = base64.b64decode(encoded)
+    return break_repeating_key_xor(text)
+
+def break_repeating_key_xor(text, min_keysize=2, max_keysize=40):
     distance_stats = []
-    for KEYSIZE in xrange(2, 41):
-        chunks = [text[i * KEYSIZE: (i+1) * KEYSIZE] for i in xrange(10)]
-        adj_dists = [hamming_distance(chunks[i], chunks[i+1]) / float(KEYSIZE)
+    for key_size in xrange(min_keysize, max_keysize + 1):
+        chunks = split_into_chunks(text, key_size)
+        adj_dists = [hamming_distance(chunks[i], chunks[i+1]) / float(key_size)
                      for i in xrange(9)]
-        distance_stats.append((sum(adj_dists) / len(adj_dists), KEYSIZE))
+        distance_stats.append((sum(adj_dists) / len(adj_dists), key_size))
     probable_keysize = sorted(distance_stats)[0][1]
 
     chunks = split_into_chunks(text, probable_keysize)
     transposed = zip(*chunks)
     passcode = ''
     for t in transposed:
-        t = binascii.hexlify(''.join(t))
-        passcode += break_single_character_xor(t)[2]
+        passcode += break_single_character_xor(t)
     return passcode
 
 def read_in_file(filename, b64decode=False):
@@ -179,7 +185,7 @@ def pkcs7_padding(text, block_size):
     return text + (chr(chars_needed) * chars_needed)
 
 def make_random_aes_key(length=16):
-    return ''.join(chr(random.randint(0, 128)) for _ in xrange(length))
+    return ''.join(random.choice(string.printable) for _ in xrange(length))
 
 def aes_unknown_mode_encrypt(plaintext):
     """Encrypt with cbc or ecb modes randomly"""
@@ -408,4 +414,3 @@ def challenge16():
     return is_admin_url(encrypted)
 
 
-print 'done'

@@ -2,6 +2,11 @@ from Crypto.Cipher import AES
 import base64
 import itertools
 import random
+import time
+
+from crypto_set1and2 import read_in_file
+from crypto_set1and2 import break_repeating_key_xor
+import rand
 
 
 class BadPadding(Exception):
@@ -18,8 +23,8 @@ def strip_pkcs7_padding(text, block_size):
             raise BadPadding
     return text[:-pad_i]
 
-def xor_bin(bin1, bin2):
-    bytes1, bytes2 = map(bytearray, (bin1, bin2))
+def xor_str(str1, str2):
+    bytes1, bytes2 = map(bytearray, (str1, str2))
     xored = [bytes1[i] ^ bytes2[i % len(bytes2)] for i in xrange(len(bytes1))]
     return str(bytearray(xored))
 
@@ -55,9 +60,9 @@ def aes_cbc_decrypt(bytes, key, iv):
     for i, chunk in enumerate(encrypted_chunks):
         intermediate = aes_ecb_decrypt(chunk, key)
         if plaintext_chunks:
-            new_chunk = xor_bin(intermediate, encrypted_chunks[i - 1])
+            new_chunk = xor_str(intermediate, encrypted_chunks[i - 1])
         else:
-            new_chunk = xor_bin(intermediate, iv)
+            new_chunk = xor_str(intermediate, iv)
         plaintext_chunks.append(str(new_chunk))
     return ''.join(plaintext_chunks)
 
@@ -66,9 +71,9 @@ def aes_cbc_encrypt(bytes, key, iv):
     encrypted_chunks = []
     for i, chunk in enumerate(plaintext_chunks):
         if encrypted_chunks:
-            intermediate = xor_bin(chunk, encrypted_chunks[i - 1])
+            intermediate = xor_str(chunk, encrypted_chunks[i - 1])
         else:
-            intermediate = xor_bin(chunk, iv)
+            intermediate = xor_str(chunk, iv)
         new_chunk = aes_ecb_encrypt(str(intermediate), key)
         encrypted_chunks.append(new_chunk)
     return ''.join(encrypted_chunks)
@@ -125,16 +130,16 @@ def break_cbc_padding_oracle(ciphertext, iv):
                 maybe_edited_iv = iv
 
                 last_n_guess = guess_c + broken_string
-                xor_string = xor_bin(last_n_guess, pad)
+                xor_string = xor_str(last_n_guess, pad)
                 prepadded_xor_string = '\xff' * (block_size - n) + xor_string
                 assert len(prepadded_xor_string) == block_size
 
                 truncated_chunks = chunks[:block_index + 1]
                 if block_index == 0:
-                    maybe_edited_iv = xor_bin(prepadded_xor_string, iv)
+                    maybe_edited_iv = xor_str(prepadded_xor_string, iv)
                 else:
                     edit_chunk = truncated_chunks[block_index - 1]
-                    edit_chunk = xor_bin(prepadded_xor_string, edit_chunk)
+                    edit_chunk = xor_str(prepadded_xor_string, edit_chunk)
                     truncated_chunks[block_index - 1] = str(edit_chunk)
                 maybe_edited_ciphertext = ''.join(truncated_chunks)
 
@@ -154,9 +159,73 @@ def break_cbc_padding_oracle(ciphertext, iv):
 
 def challenge17():
     intercepted_cookie, iv = cbc_padding_oracle()
-    doctored = xor_bin(intercepted_cookie, '\x02'* 16)
+    doctored = xor_str(intercepted_cookie, '\x02'* 16)
     broken_cookie = break_cbc_padding_oracle(intercepted_cookie, iv)
     return base64.b64decode(broken_cookie)
 
+def make_keystream(i, key):
+    assert i < 256
+    block_size = len(key)
+    pad_length = (block_size // 2) - 1
+    prepend = '\x00' * (pad_length + 1)
+    append = '\x00' * pad_length
+    return aes_ecb_encrypt(prepend + chr(i) + append, key)
 
-print repr(challenge17())
+def aes_ctr_encrypt(plaintext, key):
+    block_size = len(key)
+    i = 0
+    chunks = split_into_chunks(plaintext, block_size)
+    encrypted_chunks = [
+        xor_str(chunk, make_keystream(i, key)[:len(chunk)])
+        for i, chunk in enumerate(chunks)
+    ]
+    return ''.join(encrypted_chunks)
+
+def ctr_test(plaintext):
+    key = 'YELLOW SUBMARINE'
+    encrypted = aes_ctr_encrypt(plaintext, key)
+    return aes_ctr_encrypt(encrypted, key)
+
+def break_fixed_nonce_ctr(ciphertexts):
+    min_len = min(map(len, ciphertexts))
+    truncated = [c[:min_len] for c in ciphertexts]
+    concatenated = ''.join(truncated)
+    key_guess = break_repeating_key_xor(
+        concatenated, min_keysize=min_len, max_keysize=min_len)
+    return key_guess, min_len
+
+def challenge20():
+    # My solution isn't perfect.  A few characters I mis-guessed.  This can
+    # likely be solved with better is-this-english heuristics.  More training
+    # text might be good for uppsercase characters too.
+    # Also it's slow: <1 min
+
+    key = make_random_aes_key()
+    lines = []
+    with open('20.txt', 'r') as f:
+        lines = [base64.b64decode(l.strip()) for l in f.readlines()]
+    intercepted = [aes_ctr_encrypt(l, key) for l in lines]
+    key_guess, length = break_fixed_nonce_ctr(intercepted)
+    return '\n'.join(xor_str(cyphertext[:length], key_guess)
+                     for cyphertext in intercepted)
+
+def challenge22():
+    r = rand.Rand()
+    # time.sleep(r.extract_number())
+    r.seed_mt(int(time.time()))
+    print r.extract_number()
+    # print int(time.time())
+    import collections
+    d = collections.defaultdict(int)
+    for i in xrange(1000):
+        d[r.randint(2, 5)] += 1
+    return dict(d)
+
+
+
+print challenge22()
+
+r = rand.Rand()
+# time.sleep(r.extract_number())
+r.seed_mt(123)
+print [r.extract_number() for _ in xrange(100)]
