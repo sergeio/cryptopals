@@ -209,23 +209,36 @@ def challenge20():
     return '\n'.join(xor_str(cyphertext[:length], key_guess)
                      for cyphertext in intercepted)
 
+def sleeper_challenge(r):
+    time.sleep(r.randint(40, 1000))
+    seed = int(time.time())
+    r.seed_mt(seed)
+    print seed
+    time.sleep(r.randint(40, 1000))
+    return r.extract_number()
+
+def discover_seed(num):
+    rr = rand.Rand()
+    current_time = int(time.time())
+    for i in xrange(1002):
+        potential_seed = current_time - i
+        rr.seed_mt(potential_seed)
+        [rand1, rand2, rand3] = [rr.randint(40, 1000), rr.extract_number(),
+                                 rr.extract_number()]
+        if rand2 == num and 40 <= rand1 < 1000:
+            return potential_seed, rand3
+
+
+
 def challenge22():
     r = rand.Rand()
-    # time.sleep(r.extract_number())
-    r.seed_mt(int(time.time()))
-    print r.extract_number()
-    # print int(time.time())
-    import collections
-    d = collections.defaultdict(int)
-    for i in xrange(1000):
-        d[r.randint(2, 5)] += 1
-    return dict(d)
-
+    num = sleeper_challenge(r)
+    seed, next_int = discover_seed(num)
+    return seed, next_int, r.extract_number()
 
 
 print challenge22()
 
-r = rand.Rand()
 # time.sleep(r.extract_number())
-r.seed_mt(123)
-print [r.extract_number() for _ in xrange(100)]
+# r.seed_mt(int(time.time()))
+# print [r.extract_number() for _ in xrange(100)]

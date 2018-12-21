@@ -20,10 +20,9 @@ class Rand:
         self.seed_mt(seed)
 
     def seed_mt(self, seed):
-        print seed
         self.index = self.n
         self.mt[0] = seed
-        for i in xrange(self.n):
+        for i in xrange(1, self.n):
             mathmath = self.f * (
                 self.mt[i - 1] ^ (self.mt[i - 1] >> (self.w - 2))) + i
             self.mt[i] = lowest_x_bits(self.w, mathmath)
@@ -34,14 +33,16 @@ class Rand:
                 raise Exception("Generator was never seeded")
             self.twist()
 
+        self.temper()
+        self.index = self.index + 1
+        return lowest_x_bits(self.w, self.y)
+
+    def temper(self):
         self.y = self.mt[self.index]
         self.y = self.y ^ ((self.y >> self.u) & self.d)
         self.y = self.y ^ ((self.y << self.s) & self.b)
         self.y = self.y ^ ((self.y << self.t) & self.c)
         self.y = self.y ^ (self.y >> self.l)
-
-        self.index = self.index + 1
-        return lowest_x_bits(self.w, self.y)
 
     def twist(self):
         for i in xrange(self.n):
@@ -53,16 +54,19 @@ class Rand:
             self.mt[i] = self.mt[(i + self.m) % self.n] ^ xA
         self.index = 0
 
-    def randint(self, min_=None, max_=None):
-        if max_:
+    def rand(self):
+        return self.extract_number() / float((2 ** self.w) - 1)
+
+    def randint(self, *args):
+        assert args
+        if len(args) == 1:
+            [max_] = args
+            assert max_ > 0
+            min_ = 0
+        elif len(args) == 2:
+            [min_, max_] = args
             assert min_ < max_
-        assert not (min_ and not max_)
-        extracted = self.extract_number()
-        if max_:
-            extracted %= max_
-            if min_:
-                shrink_factor = (max_ - min_) / float(max_)
-                extracted = int(round(extracted * shrink_factor) + min_)
-
-        return extracted
-
+        else:
+            raise Exception('Too many args')
+        x = self.rand() * (max_ - min_)
+        return int(round(x - .5) + min_)
