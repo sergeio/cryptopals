@@ -244,9 +244,28 @@ def challenge23():
 
     assert r_predict.extract_number() == r.extract_number()
 
+def MT19937_stream_cipher(plaintext, seed):
+    i = 0
+    r = rand.Rand()
+    r.seed_mt(seed)
 
-print challenge23()
+    keystream = ''.join(chr(r.randint(2 ** 8)) for _ in plaintext)
+    return xor_str(plaintext, keystream)
 
-# time.sleep(r.extract_number())
-# r.seed_mt(int(time.time()))
-# print [r.extract_number() for _ in xrange(100)]
+def break_MT19937_stream_cipher(ciphertext, known_plaintext):
+    # Not sure how to do this except for brute force.  That seems to be what
+    # other people did, but that doesn't seem worth implementing.
+    known_ciphertext = ciphertext[-len(known_plaintext):]
+    known_keystream = xor_str(known_ciphertext, known_plaintext)
+    numbers = map(ord, known_keystream)
+    return numbers
+
+def challenge24():
+    seed = random.randint(0, 2 ** 16)
+    print seed
+    plaintext = 'A' * 14
+    ciphertext = MT19937_stream_cipher(plaintext, seed)
+    return MT19937_stream_cipher(ciphertext, seed)
+
+
+print repr(challenge24())

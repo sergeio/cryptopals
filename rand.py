@@ -7,7 +7,10 @@ def mask_highest_x_bits(x, num):
     return (num >> (32 - x)) << (32 - x)
 
 class Rand:
+    """MT19937 Mercenne Twister random number generator.
 
+    As described on https://en.wikipedia.org/wiki/Mersenne_Twister#Pseudocode
+    """
     (w, n, m, r) = (32, 624, 397, 31)
     a = 0x9908B0DF
     (u, d) = (11, 0xFFFFFFFF)
@@ -37,7 +40,6 @@ class Rand:
         self.twist()
 
     def extract_number(self):
-        # print self.index
         if self.index >= self.n:
             if self.index > self.n:
                 raise Exception("Generator was never seeded")
