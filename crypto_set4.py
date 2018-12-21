@@ -1,7 +1,14 @@
+import string
+
 from crypto_set1and2 import make_random_aes_key
-from crypto_set3 import split_into_chunks
-from crypto_set3 import xor_str
+from crypto_set3 import BadPadding
+from crypto_set3 import aes_cbc_decrypt
+from crypto_set3 import aes_cbc_encrypt
 from crypto_set3 import make_keystream
+from crypto_set3 import pkcs7_padding
+from crypto_set3 import split_into_chunks
+from crypto_set3 import strip_pkcs7_padding
+from crypto_set3 import xor_str
 
 
 def aes_ctr_encrypt(plaintext, key):
@@ -63,4 +70,53 @@ def challenge26():
     assert is_admin_url(edited)
     return is_admin_url(edited)
 
-print repr(challenge26())
+KEY2 = ''
+def c27_sender(text):
+    global KEY2
+    if not KEY2:
+        KEY2 = make_random_aes_key()
+    to_encrypt = pkcs7_padding(text, len(KEY2))
+
+    return aes_cbc_encrypt(to_encrypt, KEY2, KEY2)
+
+class BadDecrypt(Exception):
+    pass
+
+def c27_receiver(ciphertext):
+    decrypted = aes_cbc_decrypt(ciphertext, KEY2, KEY2)
+    try:
+        decrypted = strip_pkcs7_padding(decrypted, len(KEY2))
+    except BadPadding:
+        pass
+
+    for c in decrypted:
+        if c not in string.printable:
+            raise BadDecrypt(decrypted)
+
+    return decrypted
+
+def c27_attacker(ciphertext):
+    block_size = 16
+    chunks = split_into_chunks(ciphertext, block_size)
+    edited_ciphertext = ''.join([chunks[0], '\x00' * block_size, chunks[0]])
+    decrypted = ''
+    try:
+        c27_receiver(edited_ciphertext)
+    except BadDecrypt as e:
+        decrypted = e.message
+
+    chunks = split_into_chunks(decrypted, block_size)
+    key = xor_str(chunks[0], chunks[2])
+    assert key == KEY2
+    plaintext = aes_cbc_decrypt(ciphertext, key, key)
+    return plaintext
+
+def challenge27():
+    plaintext = 'I am confiding in you with my important secret, friend'
+    ciphertext = c27_sender(plaintext)
+    cracked_plaintext = c27_attacker(ciphertext)
+    assert plaintext == c27_receiver(ciphertext)
+    assert cracked_plaintext.startswith(plaintext)
+    return cracked_plaintext
+
+print repr(challenge27())
