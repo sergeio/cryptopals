@@ -1,6 +1,11 @@
 def lowest_x_bits(x, num):
     return ((2 ** x) - 1) & num
 
+def mask_highest_x_bits(x, num):
+    """Get the first x bits of 32-bit inteter `num`, include 0s."""
+    assert num < 0xFFFFFFFF
+    return (num >> (32 - x)) << (32 - x)
+
 class Rand:
 
     (w, n, m, r) = (32, 624, 397, 31)
@@ -11,12 +16,12 @@ class Rand:
     l = 18
     f = 1812433253
 
-    mt = range(n)
-    index = n + 1
     lower_mask = (1 << r) - 1
     upper_mask = lowest_x_bits(w, (not lower_mask))
 
     def __init__(self, seed=5489):
+        self.mt = range(self.n)
+        self.index = self.n + 1
         self.seed_mt(seed)
 
     def seed_mt(self, seed):
@@ -27,22 +32,44 @@ class Rand:
                 self.mt[i - 1] ^ (self.mt[i - 1] >> (self.w - 2))) + i
             self.mt[i] = lowest_x_bits(self.w, mathmath)
 
+    def splice(self, state_list):
+        self.mt = state_list
+        self.twist()
+
     def extract_number(self):
+        # print self.index
         if self.index >= self.n:
             if self.index > self.n:
                 raise Exception("Generator was never seeded")
             self.twist()
 
-        self.temper()
+        y = self.mt[self.index]
+        y = self.temper(y)
         self.index = self.index + 1
-        return lowest_x_bits(self.w, self.y)
+        return lowest_x_bits(self.w, y)
 
-    def temper(self):
-        self.y = self.mt[self.index]
-        self.y = self.y ^ ((self.y >> self.u) & self.d)
-        self.y = self.y ^ ((self.y << self.s) & self.b)
-        self.y = self.y ^ ((self.y << self.t) & self.c)
-        self.y = self.y ^ (self.y >> self.l)
+    def temper(self, y):
+        y = y ^ ((y >> self.u) & self.d)
+        y = y ^ ((y << self.s) & self.b)
+        y = y ^ ((y << self.t) & self.c)
+        y = y ^ (y >> self.l)
+        return y
+
+    def untemper(self, y):
+        y = y ^ (y >> self.l)
+        y = y ^ ((y << self.t) & self.c)
+
+        recovered = lowest_x_bits(self.s, y)
+        for _ in xrange((self.w // self.s)):
+            recovered = y ^ (recovered << self.s) & self.b
+        y = recovered
+
+        recovered = mask_highest_x_bits(self.u, y)
+        for _ in xrange(self.w // self.u):
+            recovered = y ^ (recovered >> self.u)
+        y = recovered
+
+        return y
 
     def twist(self):
         for i in xrange(self.n):

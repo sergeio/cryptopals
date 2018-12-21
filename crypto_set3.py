@@ -228,16 +228,24 @@ def discover_seed(num):
         if rand2 == num and 40 <= rand1 < 1000:
             return potential_seed, rand3
 
-
-
 def challenge22():
     r = rand.Rand()
     num = sleeper_challenge(r)
     seed, next_int = discover_seed(num)
     return seed, next_int, r.extract_number()
 
+def challenge23():
+    r = rand.Rand()
+    r.seed_mt(random.randint(0, 1000000000))
+    numbers = [r.extract_number() for _ in xrange(624)]
 
-print challenge22()
+    r_predict = rand.Rand()
+    r_predict.splice(map(r.untemper, numbers))
+
+    assert r_predict.extract_number() == r.extract_number()
+
+
+print challenge23()
 
 # time.sleep(r.extract_number())
 # r.seed_mt(int(time.time()))
