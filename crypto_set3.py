@@ -266,6 +266,3 @@ def challenge24():
     plaintext = 'A' * 14
     ciphertext = MT19937_stream_cipher(plaintext, seed)
     return MT19937_stream_cipher(ciphertext, seed)
-
-
-print repr(challenge24())
