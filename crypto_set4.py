@@ -9,6 +9,7 @@ from crypto_set3 import pkcs7_padding
 from crypto_set3 import split_into_chunks
 from crypto_set3 import strip_pkcs7_padding
 from crypto_set3 import xor_str
+import sha1
 
 
 def aes_ctr_encrypt(plaintext, key):
@@ -118,5 +119,8 @@ def challenge27():
     assert plaintext == c27_receiver(ciphertext)
     assert cracked_plaintext.startswith(plaintext)
     return cracked_plaintext
+
+def sign_message(message, key):
+    return sha1.sha1(key + message)
 
 print repr(challenge27())
