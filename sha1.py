@@ -15,11 +15,11 @@ def rotl32(value, count):
 def bitwise_not32(value):
     return 0xffffffff - value
 
-def chrs(integer):
+def encode_as_chars(integer):
     """Turn 64-bit integer into 8 characters."""
     mask = 0xff
     ords = []
-    assert integer > 0
+    assert integer >= 0
     while integer > 0:
         ords.append(int(integer & mask))
         integer = integer >> 8
@@ -31,20 +31,13 @@ def chrs(integer):
     ords = list(reversed(ords))
     return ''.join(ords)
 
-
-
-def sha1(message):
-    h0 = 0x67452301
-    h1 = 0xEFCDAB89
-    h2 = 0x98BADCFE
-    h3 = 0x10325476
-    h4 = 0xC3D2E1F0
-
+def ml_pad_message(message, length=None, faking_message=False):
     # ml = message length in bits (always a multiple of the number of bits in a
     # character).
+    message_length = len(message) if not length else length
 
     # This is probably not correct for non-ascii messages
-    ml = len(message) * 8
+    ml = message_length * 8
 
     # append the bit '1' to the message e.g. by adding 0x80 if message length
     # is a multiple of 8 bits.
@@ -52,16 +45,32 @@ def sha1(message):
 
     # append 0 ≤ k < 512 bits '0', such that the resulting message length in
     # bits is congruent to −64 ≡ 448 (mod 512)
-    bits_to_append = 448 - ((len(message) * 8) % 512)
+    if faking_message:
+        bits_to_append = 448 - (((message_length + 1) * 8) % 512)
+    else:
+        bits_to_append = 448 - ((len(message) * 8) % 512)
     message += '\x00' * (bits_to_append / 8)
 
     # append ml, the original message length, as a 64-bit big-endian integer.
     # Thus, the total length is a multiple of 512 bits.
-    message += chrs(ml)
+    message += encode_as_chars(ml)
+    return message
+
+def sha1(message, state=None, length=None):
+    if not state:
+        h0 = 0x67452301
+        h1 = 0xEFCDAB89
+        h2 = 0x98BADCFE
+        h3 = 0x10325476
+        h4 = 0xC3D2E1F0
+    else:
+        h0, h1, h2, h3, h4 = state
+
+    padded_message = ml_pad_message(message, length=length)
 
     # Process the message in successive 512-bit chunks:
     # break message into 512-bit chunks
-    for chunk in split_into_chunks(message, 512 / 8):
+    for chunk in split_into_chunks(padded_message, 512 / 8):
         # break chunk into sixteen 32-bit big-endian words w[i], 0 ≤ i ≤ 15
         words = split_into_chunks(chunk, 32 / 8)
         # convert string-encoded words into integers
@@ -97,18 +106,18 @@ def sha1(message):
                 f = b ^ c ^ d
                 k = 0xCA62C1D6
 
-            temp = rotl32(a, 5) + f + e + k + words[i]
+            temp = (rotl32(a, 5) + f + e + k + words[i]) & 0xffffffff
             e = d
             d = c
             c = rotl32(b, 30)
             b = a
             a = temp
 
-        h0 = h0 + a
-        h1 = h1 + b
-        h2 = h2 + c
-        h3 = h3 + d
-        h4 = h4 + e
+        h0 = (h0 + a) & 0xffffffff
+        h1 = (h1 + b) & 0xffffffff
+        h2 = (h2 + c) & 0xffffffff
+        h3 = (h3 + d) & 0xffffffff
+        h4 = (h4 + e) & 0xffffffff
 
     # Produce the final hash value (big-endian) as a 160-bit number:
     hh = (h0 << 128) | (h1 << 96) | (h2 << 64) | (h3 << 32) | h4

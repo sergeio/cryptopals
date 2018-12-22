@@ -123,4 +123,60 @@ def challenge27():
 def sign_message(message, key):
     return sha1.sha1(key + message)
 
-print repr(challenge27())
+def forge_signature_make_admin(signature, message):
+    admin_string = ';admin=true;'
+
+    sha_state = split_sha_into_registers(signature)
+    padded_length = len(sha1.ml_pad_message(message))
+
+    pairs = []
+    for key_length in xrange(4, 512):
+        original_padded_message = sha1.ml_pad_message(
+            message,
+            length=(len(message) + key_length),
+            faking_message=True
+        )
+
+        forged_message = original_padded_message + admin_string
+
+        forged_signature = sha1.sha1(
+            admin_string,
+            state=sha_state,
+            length=len(forged_message) + key_length)
+
+        pairs.append((forged_message, forged_signature))
+
+    return pairs
+
+def admin_validator(message):
+    return ';admin=true;' in message
+
+def split_sha_into_registers(sha):
+    registers = [int((sha & (0xffffffff << (32 * i))) >> (32 * i))
+                 for i in xrange(4, -1, -1)]
+    return registers
+
+def challenge29():
+    key = 'yellow submarine'
+    message = "comment1=cooking%20MCs;userdata=foo;comment2=%20like%20a%20pound%20of%20bacon"
+    signature = sign_message(message, key)
+
+    assert not admin_validator(message)
+    assert sign_message(message, key) == signature
+
+    pairs = forge_signature_make_admin(signature, message)
+
+    for mess, sign in pairs:
+        try:
+            if sign_message(mess, key) == sign:
+                forged_message = mess
+                forged_signature = sign
+        except:
+            pass
+
+    assert admin_validator(forged_message)
+    assert sign_message(forged_message, key) == forged_signature
+    return forged_message
+
+
+print repr(challenge29())
