@@ -16,7 +16,7 @@ def bitwise_not32(value):
     return 0xffffffff - value
 
 def encode_as_chars(integer):
-    """Turn 64-bit integer into 8 characters."""
+    """Turn integer into 8 characters."""
     mask = 0xff
     ords = []
     assert integer >= 0
@@ -24,12 +24,15 @@ def encode_as_chars(integer):
         ords.append(int(integer & mask))
         integer = integer >> 8
 
-    assert len(ords) <= 8
     ords += [0] * (8 - len(ords))
 
     ords = map(chr, ords)
     ords = list(reversed(ords))
     return ''.join(ords)
+
+def sha1_str(message, state=None, length=None):
+    sha_int = sha1(message, state=state, length=length)
+    return encode_as_chars(sha_int)
 
 def ml_pad_message(message, length=None, faking_message=False):
     # ml = message length in bits (always a multiple of the number of bits in a

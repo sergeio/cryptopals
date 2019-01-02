@@ -1,4 +1,6 @@
+import datetime
 import string
+import urllib
 
 from crypto_set1and2 import make_random_aes_key
 from crypto_set3 import BadPadding
@@ -10,6 +12,8 @@ from crypto_set3 import split_into_chunks
 from crypto_set3 import strip_pkcs7_padding
 from crypto_set3 import xor_str
 import sha1
+
+import requests
 
 
 def aes_ctr_encrypt(plaintext, key):
@@ -178,5 +182,60 @@ def challenge29():
     assert sign_message(forged_message, key) == forged_signature
     return forged_message
 
+def challenge30():
+    # Skipping.  Doesn't look fun.  Same as 29, and will probably still take a
+    # fair amount of debug time, despite the description asserting most of the
+    # time will be spent looking for an md4 implementation.
+    pass
 
-print repr(challenge29())
+def break_file_hash(filename):
+    def guess(signature):
+        now = datetime.datetime.now()
+        url = 'http://localhost:5000/?file=%s&signature=%s' % (
+            filename, signature)
+        request = requests.get(url)
+        msecs = (datetime.datetime.now() - now).total_seconds() * 1000
+        return request, msecs
+
+    def break_character(preceeding):
+        NUM_TRIES = 100
+        timing = []
+        for c in map(str, xrange(10)):
+            # This is very very slow : (
+            guess_sha = preceeding + c + 'X'
+            response, msecs = guess(guess_sha)
+            total_msecs = sum(
+                guess(guess_sha)[1] for _ in xrange(NUM_TRIES - 1)) + msecs
+            if response.status_code == 200:
+                return c, True
+            timing.append((total_msecs, c))
+        timing = sorted(timing, reverse=True)
+        leader_margin = timing[0][0] - timing[1][0]
+        if leader_margin > 200:
+            return timing[0][1], False
+        else:
+            return break_character(preceeding)
+
+    broken_sha = ''
+    done = False
+    while not done:
+        c, done = break_character(broken_sha)
+        broken_sha += c
+    return int(broken_sha)
+
+
+sha=''
+def challenge3132():
+    from fileserver import get_file_sha
+    filename = '4.txt'
+    global sha
+    sha = get_file_sha(filename)
+    broken_hash = break_file_hash(filename)
+    assert broken_hash == sha
+    return broken_hash == sha
+
+def challenge33():
+    pass
+
+
+print repr(challenge33())
